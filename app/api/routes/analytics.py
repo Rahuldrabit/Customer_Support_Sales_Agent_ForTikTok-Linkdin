@@ -13,7 +13,7 @@ from app.models.schemas import (
     ConversationInsight,
     EscalationStats
 )
-from app.models.database import Message, Conversation, Analytics
+from app.models.database import Message, Conversation, Analytics, MessageSender, MessageIntent
 from app.utils.logger import log
 
 router = APIRouter()
@@ -46,7 +46,7 @@ async def get_metrics(
     
     # Calculate average response time
     avg_response_time = db.query(func.avg(Message.response_time_ms)).filter(
-        Message.sender_type == "agent",
+        Message.sender_type == MessageSender.AGENT,
         Message.created_at >= start_date,
         Message.created_at <= end_date,
         Message.response_time_ms.isnot(None)
@@ -128,7 +128,7 @@ async def get_conversation_insights(
     
     insights = [
         ConversationInsight(
-            intent=intent,
+            intent=intent.value if isinstance(intent, MessageIntent) else str(intent),
             count=count,
             percentage=round((count / total * 100) if total > 0 else 0, 2)
         )

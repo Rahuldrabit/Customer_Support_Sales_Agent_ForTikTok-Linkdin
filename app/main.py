@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from app.config import settings
 from app.models.database import engine, Base
 from app.api.routes import webhooks, messages, analytics, admin
+from fastapi import APIRouter
 from app.utils.logger import setup_logging
 
 # Setup logging
@@ -46,11 +47,40 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
+# Include routers with existing prefixes
 app.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks"])
 app.include_router(messages.router, prefix="/messages", tags=["Messages"])
 app.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
 app.include_router(admin.router, prefix="/admin", tags=["Admin"])
+
+# Alias router for top-level /agent/* endpoints
+agent_router = APIRouter(tags=["Agent"])
+
+@agent_router.post("/configure")
+async def agent_configure_alias(
+    config_key: str,
+    config_value: str,
+    description: str | None = None
+):
+    # Delegate to existing handler mounted under /admin
+    from app.api.routes.admin import configure_agent
+    return await configure_agent(
+        config_key=config_key,
+        config_value=config_value,
+        description=description,
+    )
+
+@agent_router.get("/status")
+async def agent_status_alias():
+    from app.api.routes.admin import get_agent_status
+    return await get_agent_status()
+
+@agent_router.post("/train")
+async def agent_train_alias():
+    from app.api.routes.admin import train_agent
+    return await train_agent()
+
+app.include_router(agent_router, prefix="/agent")
 
 
 @app.get("/")

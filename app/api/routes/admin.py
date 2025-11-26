@@ -7,7 +7,7 @@ from datetime import datetime
 
 from app.api.dependencies import get_db
 from app.models.schemas import EscalateRequest, OverrideMessageRequest
-from app.models.database import Conversation, Message, ConversationStatus
+from app.models.database import Conversation, Message, ConversationStatus, AgentConfig
 from app.utils.logger import log
 from app.utils.exceptions import ConversationNotFoundError, MessageNotFoundError
 
@@ -83,7 +83,7 @@ async def override_message(
     
     if not message:
         raise MessageNotFoundError(message_id)
-    
+
     # Store original content in metadata
     original_content = message.content
     
@@ -183,8 +183,6 @@ async def configure_agent(
     Returns:
         Configuration update confirmation
     """
-    from app.models.database import AgentConfig
-    
     log.info(f"Updating agent configuration: {config_key}")
     
     # Check if config exists

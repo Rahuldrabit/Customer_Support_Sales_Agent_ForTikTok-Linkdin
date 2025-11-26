@@ -18,6 +18,8 @@ class AgentState(TypedDict):
     sentiment_score: float
     response_valid: bool
     classification_reason: str
+    language: str              # detected language code
+    prompt_variant: str        # A/B variant used
 
 
 class CustomerSupportAgent:
@@ -110,7 +112,9 @@ class CustomerSupportAgent:
             "escalation_reason": "",
             "sentiment_score": 0.0,
             "response_valid": True,
-            "classification_reason": ""
+            "classification_reason": "",
+            "language": "",          # will be detected in nodes
+            "prompt_variant": ""     # will be set from settings in nodes
         }
         
         # Run workflow

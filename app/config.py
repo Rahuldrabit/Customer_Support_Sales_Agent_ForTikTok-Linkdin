@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     agent_max_tokens: int = 500
     agent_temperature: float = 0.7
     agent_timeout_seconds: int = 30
+    agent_prompt_variant: str = "A"  # Options: A, B (for A/B testing)
+    agent_default_language: str = "en"
+    agent_auto_detect_language: bool = True
 
     # TikTok Integration
     tiktok_client_key: Optional[str] = None

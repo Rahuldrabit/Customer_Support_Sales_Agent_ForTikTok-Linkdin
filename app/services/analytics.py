@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, timedelta
 
-from app.models.database import Message, Conversation, Analytics
+from app.models.database import Message, Conversation, Analytics, MessageSender, MessageIntent
 from app.utils.logger import log
 
 
@@ -26,7 +26,7 @@ class AnalyticsService:
         
         # Average response time
         avg_response_time = self.db.query(func.avg(Message.response_time_ms)).filter(
-            Message.sender_type == "agent",
+            Message.sender_type == MessageSender.AGENT,
             Message.created_at >= start_date,
             Message.created_at <= end_date,
             Message.response_time_ms.isnot(None)
@@ -102,7 +102,7 @@ class AnalyticsService:
         
         return [
             {
-                "intent": intent.value if intent else "unknown",
+                "intent": intent.value if isinstance(intent, MessageIntent) else str(intent),
                 "count": count,
                 "percentage": round((count / total * 100) if total > 0 else 0, 2)
             }

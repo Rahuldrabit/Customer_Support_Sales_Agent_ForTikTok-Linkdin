@@ -8,16 +8,22 @@ from langchain.prompts import ChatPromptTemplate
 from app.config import settings
 from app.agent.prompts import (
     CLASSIFICATION_PROMPT,
-    SUPPORT_RESPONSE_PROMPT,
-    SALES_RESPONSE_PROMPT,
-    GENERAL_RESPONSE_PROMPT,
+    SUPPORT_RESPONSE_PROMPT_A,
+    SUPPORT_RESPONSE_PROMPT_B,
+    SALES_RESPONSE_PROMPT_A,
+    SALES_RESPONSE_PROMPT_B,
+    GENERAL_RESPONSE_PROMPT_A,
+    GENERAL_RESPONSE_PROMPT_B,
     ESCALATION_MESSAGE,
     MOCK_RESPONSES
 )
 from app.agent.tools import (
     detect_urgency,
     extract_sentiment_indicators,
-    format_context
+    format_context,
+    detect_language,
+    select_prompt_variant,
+    adjust_response_for_sentiment
 )
 from app.utils.logger import log
 
@@ -64,6 +70,15 @@ class AgentNodes:
         log.info("Classifying message intent")
         
         message = state.get("message", "")
+        
+        # Language detection
+        if settings.agent_auto_detect_language:
+            lang = detect_language(message)
+        else:
+            lang = settings.agent_default_language
+        state["language"] = lang
+        state["prompt_variant"] = settings.agent_prompt_variant.upper()
+
         context = format_context(state.get("conversation_history", []))
         
         # Check for urgency first
@@ -99,7 +114,7 @@ class AgentNodes:
             # Rule-based classification
             state["intent"] = self._rule_based_classification(message)
         
-        log.info(f"Message classified as: {state['intent']}")
+        log.info(f"Message classified as: {state['intent']} (lang={state['language']}, variant={state['prompt_variant']})")
         return state
     
     def _rule_based_classification(self, message: str) -> str:
@@ -136,6 +151,32 @@ class AgentNodes:
         
         return state
     
+    def _get_prompt_for_intent(self, intent: str, variant: str) -> str:
+        """
+        Select the correct prompt template for given intent and A/B variant.
+        """
+        key = select_prompt_variant(intent, variant)
+        mapping = {
+            "support_A": SUPPORT_RESPONSE_PROMPT_A,
+            "support_B": SUPPORT_RESPONSE_PROMPT_B,
+            "sales_A": SALES_RESPONSE_PROMPT_A,
+            "sales_B": SALES_RESPONSE_PROMPT_B,
+            "general_A": GENERAL_RESPONSE_PROMPT_A,
+            "general_B": GENERAL_RESPONSE_PROMPT_B,
+        }
+        return mapping.get(key, GENERAL_RESPONSE_PROMPT_A)
+    
+    def _wrap_prompt_with_language_hint(self, base_prompt: str, language: str) -> str:
+        """
+        Add a brief language instruction at the top of the prompt.
+
+        This lets the LLM respond in the detected language where possible.
+        """
+        if not language or language == "en":
+            return base_prompt
+        prefix = f"You MUST answer in language code '{language}'.\n\n"
+        return prefix + base_prompt
+
     def generate_response(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """
         Generate appropriate response based on intent.
@@ -151,6 +192,9 @@ class AgentNodes:
         intent = state.get("intent", "general")
         message = state.get("message", "")
         context = state.get("formatted_context", "")
+        language = state.get("language", settings.agent_default_language)
+        variant = state.get("prompt_variant", settings.agent_prompt_variant.upper())
+        sentiment = state.get("sentiment_score", 0.0)
         
         # Handle urgent/escalation
         if intent == "urgent" or state.get("requires_escalation"):
@@ -158,14 +202,9 @@ class AgentNodes:
             state["requires_escalation"] = True
             return state
         
-        # Select appropriate prompt based on intent
-        prompt_map = {
-            "support": SUPPORT_RESPONSE_PROMPT,
-            "sales": SALES_RESPONSE_PROMPT,
-            "general": GENERAL_RESPONSE_PROMPT
-        }
-        
-        prompt_template = prompt_map.get(intent, GENERAL_RESPONSE_PROMPT)
+        # Select appropriate prompt based on intent + variant
+        base_prompt_template = self._get_prompt_for_intent(intent, variant)
+        prompt_template = self._wrap_prompt_with_language_hint(base_prompt_template, language)
         
         # Generate response using LLM if available
         if self.llm:
@@ -174,26 +213,26 @@ class AgentNodes:
                 response = self.llm.invoke(
                     prompt.format_messages(message=message, context=context)
                 )
-                state["response"] = response.content
+                final_text = response.content
             except Exception as e:
                 log.error(f"LLM response generation failed: {e}")
-                state["response"] = MOCK_RESPONSES.get(intent, MOCK_RESPONSES["general"])
+                final_text = MOCK_RESPONSES.get(intent, MOCK_RESPONSES["general"])
         else:
             # Use mock responses
-            state["response"] = MOCK_RESPONSES.get(intent, MOCK_RESPONSES["general"])
+            final_text = MOCK_RESPONSES.get(intent, MOCK_RESPONSES["general"])
         
+        # Adjust tone based on sentiment (Sentiment Analysis -> tone tuning)
+        final_text = adjust_response_for_sentiment(final_text, sentiment)
+        
+        state["response"] = final_text
         log.info(f"Response generated: {state['response'][:50]}...")
         return state
     
     def check_escalation(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """
         Determine if human escalation is needed.
-        
-        Args:
-            state: Current agent state
-            
-        Returns:
-            Updated state with escalation decision
+
+        Also computes sentiment_score used later for tone adjustment.
         """
         log.info("Checking escalation requirements")
         
@@ -204,6 +243,8 @@ class AgentNodes:
         if intent == "urgent":
             state["requires_escalation"] = True
             state["escalation_reason"] = "Urgent issue requiring immediate human attention"
+            # still compute sentiment for analytics & tone
+            state["sentiment_score"] = extract_sentiment_indicators(message)
             return state
         
         # Check sentiment

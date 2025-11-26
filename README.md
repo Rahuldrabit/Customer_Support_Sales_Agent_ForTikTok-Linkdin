@@ -2,9 +2,10 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109.0-green.svg)](https://fastapi.tiangolo.com/)
-[![LangGraph](https://img.shields.io/badge/LangGraph-Latest-orange.svg)](https://github.com/langchain-ai/langgraph)
+[![LangGraph](https://img.shields.io/badge/LangGraph-0.0.20-orange.svg)](https://github.com/langchain-ai/langgraph)
+[![LangChain](https://img.shields.io/badge/LangChain-0.1.5-blue.svg)](https://python.langchain.com/)
 
-An intelligent customer support and sales agent that automates responses across **TikTok** and **LinkedIn** messaging platforms using **FastAPI** and **LangGraph**.
+An intelligent customer support and sales agent that automates responses across **TikTok** and **LinkedIn** messaging platforms using **FastAPI** and **LangGraph**. This project demonstrates a production-ready AI agent implementation with comprehensive testing, documentation, and deployment configurations.
 
 ## 🎯 Features
 
@@ -12,60 +13,81 @@ An intelligent customer support and sales agent that automates responses across 
 - 🤖 **Multi-Intent Recognition**: Automatically classifies messages as support, sales, general, or urgent
 - 💬 **Context-Aware Responses**: Maintains conversation history for coherent interactions
 - 🚨 **Smart Escalation**: Detects urgent issues and escalates to human agents
-- 📊 **Analytics Dashboard**: Track metrics, response times, and sentiment
-- 🔌 **Multi-Platform Support**: TikTok and LinkedIn integrations
-- ⚡ **Async Processing**: Redis-based message queue for scalability
+- 📊 **Analytics Dashboard**: Track metrics, response times, sentiment analysis, and conversation insights
+- 🔌 **Multi-Platform Support**: TikTok and LinkedIn webhook integrations with mock clients
+- ⚡ **Async Processing**: Redis-based caching and Celery task queue for scalability
+- 🌐 **Multi-language Support**: Auto-detect language and respond accordingly
+- 🧪 **A/B Testing**: Test different prompt variants and measure performance
 
-### Agent Workflow (LangGraph)
-1. **Message Classification**: Determine intent and urgency
-2. **Context Retrieval**: Load conversation history
-3. **Escalation Check**: Identify critical issues
-4. **Response Generation**: Create appropriate responses
-5. **Validation**: Ensure response quality
+### LangGraph Agent Workflow
+The agent uses a stateful workflow powered by LangGraph:
+1. **Message Classification**: Determine intent (support/sales/general/urgent) and sentiment
+2. **Context Retrieval**: Format conversation history for LLM context
+3. **Escalation Check**: Identify critical issues requiring human intervention
+4. **Response Generation**: Create appropriate responses based on intent and tone
+5. **Response Validation**: Ensure response quality and appropriateness
 
 ## 📁 Project Structure
 
 ```
 project/
 ├── app/
-│   ├── agent/              # LangGraph agent implementation
-│   │   ├── graph.py        # Workflow definition
-│   │   ├── nodes.py        # Agent nodes
-│   │   ├── prompts.py      # System prompts
-│   │   └── tools.py        # Utility functions
-│   ├── api/                # FastAPI routes
+│   ├── agent/                  # LangGraph agent implementation
+│   │   ├── graph.py            # Workflow definition and state management
+│   │   ├── nodes.py            # Agent node implementations
+│   │   ├── prompts.py          # System prompts and templates
+│   │   └── tools.py            # Utility functions for agent
+│   ├── api/                    # FastAPI routes
+│   │   ├── dependencies.py     # Dependency injection utilities
 │   │   └── routes/
-│   │       ├── webhooks.py # Platform webhook handlers
-│   │       ├── messages.py # Message endpoints
-│   │       ├── analytics.py # Analytics endpoints
-│   │       └── admin.py    # Admin endpoints
-│   ├── integrations/       # Platform clients
-│   │   ├── tiktok.py       # TikTok API client (mock)
-│   │   └── linkedin.py     # LinkedIn API client (mock)
-│   ├── models/             # Database models
-│   │   ├── database.py     # SQLAlchemy models
-│   │   └── schemas.py      # Pydantic schemas
-│   ├── services/           # Business logic
+│   │       ├── webhooks.py     # Platform webhook handlers
+│   │       ├── messages.py     # Message endpoints
+│   │       ├── analytics.py    # Analytics endpoints
+│   │       └── admin.py        # Admin endpoints
+│   ├── integrations/           # Platform clients
+│   │   ├── tiktok.py           # TikTok API client (mock)
+│   │   └── linkedin.py         # LinkedIn API client (mock)
+│   ├── models/                 # Database models
+│   │   ├── database.py         # SQLAlchemy models
+│   │   └── schemas.py          # Pydantic schemas
+│   ├── services/               # Business logic
 │   │   ├── message_processor.py
 │   │   ├── conversation.py
-│   │   └── analytics.py
-│   ├── utils/              # Utilities
-│   │   ├── logger.py       # Logging configuration
-│   │   └── exceptions.py   # Custom exceptions
-│   ├── config.py           # Configuration
-│   └── main.py             # FastAPI application
-├── tests/                  # Tests
-│   ├── unit/               # Unit tests
-│   └── integration/        # Integration tests
-├── alembic/                # Database migrations
-├── docker-compose.yml      # Docker services
-├── Dockerfile              # Application Dockerfile
-├── requirements.txt        # Python dependencies
-├── .env.example            # Environment template
+│   │   ├── analytics.py
+│   │   └── celery_worker.py    # Celery task definitions
+│   ├── utils/                  # Utilities
+│   │   ├── logger.py           # Logging configuration (loguru)
+│   │   └── exceptions.py       # Custom exceptions
+│   ├── config.py               # Configuration management
+│   └── main.py                 # FastAPI application entry point
+├── tests/                      # Tests
+│   ├── conftest.py             # Pytest configuration
+│   ├── unit/                   # Unit tests
+│   │   ├── test_agent_nodes.py
+│   │   └── test_agent_tools.py
+│   └── integration/            # Integration tests
+│       └── test_api_endpoints.py
+├── docs/                       # Additional documentation
+│   ├── ARCHITECTURE.md         # System architecture details
+│   └── QUICKSTART.md           # Quick start guide
+├── alembic/                    # Database migrations
+│   ├── versions/
+│   └── env.py
+├── alembic.ini                 # Alembic configuration
+├── docker-compose.yml          # Docker services configuration
+├── Dockerfile                  # Application Dockerfile
+├── requirements.txt            # Python dependencies
+├── seed_database.py            # Database seeding script
+├── postman_collection.json     # Postman API testing collection
+├── .env.example                # Environment template (create manually)
 └── README.md
 ```
 
+> **Note**: You'll need to create a `.env` file manually (copy from `.env.example` if available, or create based on the Environment Variables section below).
+
 ## 🚀 Quick Start
+
+> **💡 For detailed setup instructions**, see [docs/QUICKSTART.md](docs/QUICKSTART.md)
 
 ### Prerequisites
 - Python 3.11+
@@ -78,23 +100,49 @@ project/
 #### 1. Clone and Setup
 ```bash
 git clone <repository-url>
-cd AI-Powered\ CustomerSupport\ &\ Sales\ Agent
+cd project-directory
 ```
 
 #### 2. Environment Configuration
+Create a `.env` file with your configuration:
 ```bash
-cp .env.example .env
+# You'll need to create this file manually
+# See "Environment Variables" section below for required values
 ```
 
-Edit `.env` and configure:
-- Database credentials
-- LLM API keys (OpenAI or Anthropic - optional, will use mock if not provided)
-- Platform credentials (TikTok, LinkedIn - optional for development)
+Example `.env`:
+```env
+# Database
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/customer_agent_db
+
+# Redis
+REDIS_URL=redis://localhost:6379/0
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/0
+
+# LLM Configuration (optional - defaults to mock)
+LLM_PROVIDER=mock
+# OPENAI_API_KEY=your-key-here
+# ANTHROPIC_API_KEY=your-key-here
+
+# Agent Configuration
+AGENT_MAX_TOKENS=500
+AGENT_TEMPERATURE=0.7
+AGENT_PROMPT_VARIANT=A
+AGENT_DEFAULT_LANGUAGE=en
+AGENT_AUTO_DETECT_LANGUAGE=true
+
+# Logging
+LOG_LEVEL=INFO
+```
 
 #### 3. Docker Setup (Recommended)
 ```bash
-# Start all services
+# Start all services (PostgreSQL, Redis, FastAPI app, Celery worker)
 docker-compose up -d
+
+# Check service status
+docker-compose ps
 
 # Check logs
 docker-compose logs -f app
@@ -102,7 +150,16 @@ docker-compose logs -f app
 
 The API will be available at `http://localhost:8000`
 
-#### 4. Local Setup (Alternative)
+#### 4. Database Setup
+```bash
+# Run migrations (if using Alembic)
+docker-compose exec app alembic upgrade head
+
+# Seed test data (optional but recommended)
+docker-compose exec app python seed_database.py
+```
+
+#### 5. Local Setup (Alternative)
 ```bash
 # Create virtual environment
 python -m venv venv
@@ -112,17 +169,14 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # Start PostgreSQL and Redis (must be running)
-# Then run the application
-uvicorn app.main:app --reload
-```
-
-### 5. Database Migrations
-```bash
-# Initialize Alembic (first time only)
-alembic revision --autogenerate -m "Initial migration"
-
-# Run migrations
+# Then run database migrations
 alembic upgrade head
+
+# Seed test data (optional)
+python seed_database.py
+
+# Start the application
+uvicorn app.main:app --reload
 ```
 
 ## 📚 API Documentation
@@ -133,6 +187,10 @@ Once the application is running, visit:
 
 ### Key Endpoints
 
+#### Core Endpoints
+- `GET /` - Root endpoint (API info)
+- `GET /health` - Health check endpoint
+
 #### Webhooks
 - `POST /webhooks/tiktok` - Receive TikTok messages
 - `POST /webhooks/linkedin` - Receive LinkedIn messages
@@ -141,10 +199,10 @@ Once the application is running, visit:
 #### Messages
 - `POST /messages/send` - Send message to platform
 - `GET /messages/conversations` - List all conversations
-- `GET /messages/conversations/{id}` - Get conversation details
+- `GET /messages/conversations/{id}` - Get conversation details with message history
 
 #### Analytics
-- `GET /analytics/metrics` - System metrics (response time, escalation rate, etc.)
+- `GET /analytics/metrics` - System metrics (avg response time, escalation rate, etc.)
 - `GET /analytics/conversations` - Conversation insights by intent
 - `GET /analytics/escalations` - Escalation statistics
 
@@ -154,6 +212,12 @@ Once the application is running, visit:
 - `GET /admin/logs` - View system logs
 - `POST /admin/agent/configure` - Update agent configuration
 - `GET /admin/agent/status` - Get agent health status
+- `POST /admin/agent/train` - Train/update agent (placeholder)
+
+#### Agent (Aliases to Admin endpoints)
+- `POST /agent/configure` - Configure agent settings
+- `GET /agent/status` - Get agent status
+- `POST /agent/train` - Train agent
 
 ## 🧪 Testing
 
@@ -181,14 +245,40 @@ pytest --cov=app --cov-report=html tests/
 
 | Variable | Description | Default |
 |----------|-------------|---------|
+| **Application** |
+| `APP_NAME` | Application name | `AI Customer Support Agent` |
+| `APP_VERSION` | Application version | `1.0.0` |
+| `DEBUG` | Debug mode | `true` |
+| `ENVIRONMENT` | Environment (development/production) | `development` |
+| **Database** |
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@localhost:5432/customer_agent_db` |
+| **Redis & Celery** |
 | `REDIS_URL` | Redis connection string | `redis://localhost:6379/0` |
+| `CELERY_BROKER_URL` | Celery broker URL | `redis://localhost:6379/0` |
+| `CELERY_RESULT_BACKEND` | Celery result backend | `redis://localhost:6379/0` |
+| **LLM Configuration** |
 | `LLM_PROVIDER` | LLM provider (`openai`, `anthropic`, `mock`) | `mock` |
 | `OPENAI_API_KEY` | OpenAI API key (optional) | `None` |
 | `ANTHROPIC_API_KEY` | Anthropic API key (optional) | `None` |
+| **Agent Configuration** |
 | `AGENT_MAX_TOKENS` | Max tokens for LLM responses | `500` |
 | `AGENT_TEMPERATURE` | LLM temperature | `0.7` |
+| `AGENT_TIMEOUT_SECONDS` | Agent processing timeout | `30` |
+| `AGENT_PROMPT_VARIANT` | Prompt variant for A/B testing (A/B) | `A` |
+| `AGENT_DEFAULT_LANGUAGE` | Default language code | `en` |
+| `AGENT_AUTO_DETECT_LANGUAGE` | Auto-detect message language | `true` |
+| **Platform Integration** |
+| `TIKTOK_CLIENT_KEY` | TikTok client key (optional) | `None` |
+| `TIKTOK_CLIENT_SECRET` | TikTok client secret (optional) | `None` |
+| `TIKTOK_WEBHOOK_SECRET` | TikTok webhook secret (optional) | `None` |
+| `LINKEDIN_CLIENT_ID` | LinkedIn client ID (optional) | `None` |
+| `LINKEDIN_CLIENT_SECRET` | LinkedIn client secret (optional) | `None` |
+| **Rate Limiting** |
+| `TIKTOK_RATE_LIMIT` | TikTok requests per minute | `60` |
+| `LINKEDIN_RATE_LIMIT` | LinkedIn requests per minute | `100` |
+| **Logging** |
 | `LOG_LEVEL` | Logging level | `INFO` |
+| `LOG_FILE` | Log file path | `logs/app.log` |
 
 ## 🎨 Agent Behavior Examples
 
@@ -302,22 +392,58 @@ This project is part of a software engineering evaluation task for FlowGenX.ai
 # Type checking
 mypy app/
 
-# Linting (if configured)
-flake8 app/
+# Run linting (if configured)
+# flake8 app/
 ```
 
-### Adding New Intents
-1. Update `MessageIntent` enum in `models/database.py`
-2. Add prompt in `agent/prompts.py`
-3. Update classification logic in `agent/nodes.py`
-4. Add tests
+### Database Seeding
+The project includes a database seeding script for development and testing:
+```bash
+# Seed test data
+python seed_database.py
+
+# Or via Docker
+docker-compose exec app python seed_database.py
+```
+
+This creates sample users, conversations, messages, and agent configurations.
+
+### API Testing
+Import the Postman collection for easy API testing:
+```bash
+# File: postman_collection.json
+# Import into Postman to test all endpoints
+```
+
+### Adding New Features
+
+#### Adding New Intents
+1. Update `MessageIntent` enum in `app/models/database.py`
+2. Add prompt template in `app/agent/prompts.py`
+3. Update classification logic in `app/agent/nodes.py`
+4. Add corresponding tests
+
+#### Adding New Agent Nodes
+1. Add node function in `app/agent/nodes.py`
+2. Update workflow in `app/agent/graph.py`
+3. Update `AgentState` TypedDict if needed
+4. Add unit tests
 
 ## 📞 Support
 
 For questions or issues:
-- Check the API documentation at `/docs`
-- Review logs at `/admin/logs`
-- Check agent status at `/admin/agent/status`
+- **API Documentation**: Visit http://localhost:8000/docs for interactive API docs
+- **System Logs**: Check `/admin/logs` endpoint or view with `docker-compose logs -f`
+- **Agent Status**: Check agent health at `/admin/agent/status` or `/agent/status`
+- **Detailed Guides**: 
+  - [docs/QUICKSTART.md](docs/QUICKSTART.md) - Quick start guide with step-by-step setup
+  - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Comprehensive architecture documentation
+
+## 📖 Additional Documentation
+
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**: Detailed system architecture, data flow diagrams, database schema, scaling considerations, and deployment architecture
+- **[docs/QUICKSTART.md](docs/QUICKSTART.md)**: 5-minute setup guide with testing examples and troubleshooting
+- **[postman_collection.json](postman_collection.json)**: Postman collection for API testing
 
 ---
 

@@ -4,6 +4,50 @@ from typing import Optional
 import re
 
 
+def detect_language(text: str) -> str:
+    """
+    Very simple language detection heuristic.
+
+    Currently distinguishes 'en' vs 'es' vs 'fr' vs 'de' using keyword hints.
+    Falls back to 'en'.
+    """
+    t = text.lower()
+    # Spanish hints
+    if any(w in t for w in ["hola", "gracias", "por favor", "ayuda", "pedido"]):
+        return "es"
+    # French hints
+    if any(w in t for w in ["bonjour", "merci", "s'il vous plaît", "commande", "aide"]):
+        return "fr"
+    # German hints
+    if any(w in t for w in ["hallo", "danke", "bitte", "bestellung", "hilfe"]):
+        return "de"
+    return "en"
+
+
+def select_prompt_variant(base_key: str, variant: str) -> str:
+    """
+    Build a prompt key name with variant suffix for A/B testing.
+
+    Example:
+        base_key='support' and variant='B' -> 'support_B'
+    """
+    return f"{base_key}_{variant.upper()}"
+
+
+def adjust_response_for_sentiment(response: str, sentiment: float) -> str:
+    """
+    Lightly adjust response tone based on sentiment score.
+
+    If sentiment is strongly negative, prepend an extra apology.
+    """
+    if sentiment <= -0.6:
+        prefix = "I'm really sorry about this experience. "
+        # Avoid double-prefixing
+        if not response.startswith(prefix):
+            return prefix + response
+    return response
+
+
 def extract_sentiment_indicators(text: str) -> float:
     """
     Extract basic sentiment from text.

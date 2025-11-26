@@ -12,7 +12,7 @@ from app.models.schemas import (
     ConversationResponse,
     MessageResponse
 )
-from app.models.database import Conversation, Message, User, Platform
+from app.models.database import Conversation, Message, User, Platform, ConversationStatus
 from app.services.message_processor import send_message_to_platform
 from app.utils.logger import log
 from app.utils.exceptions import ConversationNotFoundError
@@ -140,11 +140,20 @@ async def list_conversations(
     
     query = db.query(Conversation)
     
-    # Apply filters
+    # Apply filters using enums where possible
     if platform:
-        query = query.filter(Conversation.platform == platform)
+        try:
+            platform_enum = Platform(platform)
+            query = query.filter(Conversation.platform == platform_enum)
+        except ValueError:
+            # Invalid platform string, return empty list
+            return []
     if status:
-        query = query.filter(Conversation.status == status)
+        try:
+            status_enum = ConversationStatus(status)
+            query = query.filter(Conversation.status == status_enum)
+        except ValueError:
+            return []
     if escalated is not None:
         query = query.filter(Conversation.escalated == escalated)
     
