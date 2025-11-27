@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 
 from app.config import settings
 from app.models.database import engine, Base
-from app.api.routes import webhooks, messages, analytics, admin
+from app.api.routes import webhooks, messages, analytics, admin, conversations
 from app.api.routes import oauth
 from fastapi import APIRouter
 from app.utils.logger import setup_logging
@@ -56,18 +56,24 @@ app.add_middleware(
 # Include routers with existing prefixes
 app.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks"])
 app.include_router(messages.router, prefix="/messages", tags=["Messages"])
+app.include_router(conversations.router, prefix="/conversations", tags=["Conversations"])
 app.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
 app.include_router(admin.router, prefix="/admin", tags=["Admin"])
 app.include_router(oauth.router, prefix="/oauth", tags=["OAuth"])
 
 # Alias router for top-level /agent/* endpoints
+from fastapi import Depends
+from sqlalchemy.orm import Session
+from app.api.dependencies import get_db
+
 agent_router = APIRouter(tags=["Agent"])
 
 @agent_router.post("/configure")
 async def agent_configure_alias(
     config_key: str,
     config_value: str,
-    description: str | None = None
+    description: str | None = None,
+    db: Session = Depends(get_db),
 ):
     # Delegate to existing handler mounted under /admin
     from app.api.routes.admin import configure_agent
@@ -75,17 +81,18 @@ async def agent_configure_alias(
         config_key=config_key,
         config_value=config_value,
         description=description,
+        db=db,
     )
 
 @agent_router.get("/status")
-async def agent_status_alias():
+async def agent_status_alias(db: Session = Depends(get_db)):
     from app.api.routes.admin import get_agent_status
-    return await get_agent_status()
+    return await get_agent_status(db=db)
 
 @agent_router.post("/train")
-async def agent_train_alias():
+async def agent_train_alias(db: Session = Depends(get_db)):
     from app.api.routes.admin import train_agent
-    return await train_agent()
+    return await train_agent(db=db)
 
 app.include_router(agent_router, prefix="/agent")
 

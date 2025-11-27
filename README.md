@@ -41,9 +41,11 @@ project/
 │   │   ├── dependencies.py     # Dependency injection utilities
 │   │   └── routes/
 │   │       ├── webhooks.py     # Platform webhook handlers
-│   │       ├── messages.py     # Message endpoints
+│   │       ├── messages.py     # Message sending endpoints
+│   │       ├── conversations.py # Conversation management (NEW)
 │   │       ├── analytics.py    # Analytics endpoints
-│   │       └── admin.py        # Admin endpoints
+│   │       ├── admin.py        # Admin endpoints
+│   │       └── oauth.py        # OAuth endpoints
 │   ├── integrations/           # Platform clients
 │   │   ├── tiktok.py           # TikTok API client (mock)
 │   │   └── linkedin.py         # LinkedIn API client (mock)
@@ -152,12 +154,19 @@ The API will be available at `http://localhost:8000`
 
 #### 4. Database Setup
 ```bash
-# Run migrations (if using Alembic)
+# Run migrations to add new schema fields
 docker-compose exec app alembic upgrade head
 
 # Seed test data (optional but recommended)
 docker-compose exec app python seed_database.py
 ```
+
+**New in v1.1.0:** The migration adds:
+- Message deduplication support (`platform_message_id`)
+- Message direction tracking (`INBOUND`/`OUTBOUND`)
+- Message status for async sending (`QUEUED`/`SENT`/`FAILED`)
+- Conversation priority (`high`/`normal`/`low`)
+- Agent assignment (`assigned_to`)
 
 #### 5. Local Setup (Alternative)
 ```bash
@@ -187,19 +196,46 @@ Once the application is running, visit:
 
 ### Key Endpoints
 
+> **⚠️ API UPDATES (v1.1.0)**: 
+> - Conversation endpoints moved from `/messages/conversations` → `/conversations`
+> - Message sending now asynchronous (returns `202 Accepted` with `job_id`)
+> - Webhook endpoints include deduplication support
+
 #### Core Endpoints
 - `GET /` - Root endpoint (API info)
 - `GET /health` - Health check endpoint
+- `GET /metrics` - Prometheus metrics
 
 #### Webhooks
-- `POST /webhooks/tiktok` - Receive TikTok messages
-- `POST /webhooks/linkedin` - Receive LinkedIn messages
+- `POST /webhooks/tiktok` - Receive TikTok messages (**with deduplication**)
+- `POST /webhooks/linkedin` - Receive LinkedIn messages (**with deduplication**)
 - `GET /webhooks/verify` - Webhook verification
 
+**Deduplication**: Webhooks automatically detect and skip duplicate messages using `platform_message_id`.
+
 #### Messages
-- `POST /messages/send` - Send message to platform
-- `GET /messages/conversations` - List all conversations
-- `GET /messages/conversations/{id}` - Get conversation details with message history
+- `POST /messages/send` - **[ASYNC]** Send message to platform (returns `202 Accepted` with `job_id`)
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "message_id": 123,
+  "job_id": "7e3a9f6b-1c4d-4e8a-9b5c-2d7f8a6e4c3b"
+}
+```
+
+#### Conversations (NEW PATH)
+- `GET /conversations` - List conversations with filters
+- `GET /conversations/{id}` - Get conversation details with message history
+
+**New Query Parameters:**
+- `priority` - Filter by priority (`high`, `normal`, `low`)
+- `assigned_to` - Filter by assigned agent ID
+- `platform` - Filter by platform (`tiktok`, `linkedin`)
+- `status` - Filter by status (`active`, `escalated`, `closed`)
+- `escalated` - Filter by escalation status (boolean)
+- `limit` / `offset` - Pagination
 
 #### Analytics
 - `GET /analytics/metrics` - System metrics (avg response time, escalation rate, etc.)
@@ -223,14 +259,18 @@ Once the application is running, visit:
 
 ### Run All Tests
 ```bash
-# With coverage
-pytest --cov=app tests/
+# Activate virtual environment first
+.venv\Scripts\Activate.ps1  # Windows
+source .venv/bin/activate   # Linux/Mac
+
+# Run all tests with coverage
+pytest --cov=app tests/ -v
 
 # Specific test file
-pytest tests/unit/test_agent_tools.py
+pytest tests/integration/test_api_endpoints.py -v
 
-# Integration tests only
-pytest tests/integration/
+# Unit tests only
+pytest tests/unit/ -v
 ```
 
 ### Test Coverage
@@ -238,6 +278,14 @@ pytest tests/integration/
 pytest --cov=app --cov-report=html tests/
 # View coverage report at htmlcov/index.html
 ```
+
+**Latest Test Suite Includes:**
+- ✅ Webhook deduplication tests
+- ✅ Async message sending (202 Accepted)
+- ✅ New conversation endpoints
+- ✅ Priority and assignment filtering
+- ✅ Admin and agent management
+- ✅ 30+ comprehensive integration tests
 
 ## 🔧 Configuration
 

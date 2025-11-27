@@ -129,6 +129,7 @@ class SendMessageResponse(BaseModel):
     """Schema for send message response."""
     success: bool
     message_id: Optional[int] = None
+    job_id: Optional[str] = None  # Celery task ID
     error: Optional[str] = None
 
 

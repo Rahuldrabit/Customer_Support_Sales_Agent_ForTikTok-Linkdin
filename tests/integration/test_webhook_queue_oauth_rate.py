@@ -12,8 +12,10 @@ from app.models.database import SessionLocal, Platform, User, Conversation, Cred
 from app.services.message_processor import send_message_to_platform
 from app.integrations.tiktok import TikTokClient
 from app.integrations.linkedin import LinkedInClient
+from tests.conftest import requires_redis
 
 
+@requires_redis
 @pytest.mark.asyncio
 async def test_webhook_enqueues_and_task_apply_succeeds():
     """Simulate webhook enqueue by directly applying the Celery task synchronously."""
@@ -35,34 +37,30 @@ async def test_webhook_enqueues_and_task_apply_succeeds():
 
 
 @pytest.mark.asyncio
-async def test_oauth_callback_stores_credentials_and_used_in_send():
+async def test_oauth_callback_stores_credentials_and_used_in_send(db: Session):
     """Ensure OAuth callback stores credentials and they are used on send_message_to_platform."""
-    db: Session = SessionLocal()
-    try:
-        # Create user and conversation
-        user = User(platform=Platform.LINKEDIN, platform_user_id="lin-user")
-        db.add(user); db.commit(); db.refresh(user)
-        conv = Conversation(user_id=user.id, platform=Platform.LINKEDIN, platform_conversation_id="lin-conv")
-        db.add(conv); db.commit(); db.refresh(conv)
+    # Create user and conversation using test db fixture
+    user = User(platform=Platform.LINKEDIN, platform_user_id="lin-user-oauth-test")
+    db.add(user); db.commit(); db.refresh(user)
+    conv = Conversation(user_id=user.id, platform=Platform.LINKEDIN, platform_conversation_id="lin-conv")
+    db.add(conv); db.commit(); db.refresh(conv)
 
-        # Invoke OAuth callback (mock path parameters via direct call)
-        # Note: oauth callback is async; call directly
-        from app.api.routes.oauth import linkedin_oauth_callback as cb
-        resp = await cb(code="dummy", redirect_uri="http://localhost/cb", platform_user_id="lin-user", db=db)
-        assert resp["status"] == "success"
+    # Invoke OAuth callback (mock path parameters via direct call)
+    # Note: oauth callback is async; call directly
+    from app.api.routes.oauth import linkedin_oauth_callback as cb
+    resp = await cb(code="dummy", redirect_uri="http://localhost/cb", platform_user_id="lin-user-oauth-test", db=db)
+    assert resp["status"] == "success"
 
-        # Verify credentials saved
-        cred = db.query(Credentials).filter(Credentials.user_id == user.id, Credentials.platform == Platform.LINKEDIN).first()
-        assert cred is not None
+    # Verify credentials saved
+    cred = db.query(Credentials).filter(Credentials.user_id == user.id, Credentials.platform == Platform.LINKEDIN).first()
+    assert cred is not None
 
-        # Patch LinkedIn client to assert access_token is provided
-        with patch.object(LinkedInClient, 'send_message', return_value=True) as send_mock:
-            ok = await send_message_to_platform(Platform.LINKEDIN, conversation_id="lin-conv", message="Hi", db=db)
-            assert ok is True
-            # access_token should be passed; we can't easily inspect due to signature, but mock ensures call happened
-            assert send_mock.called
-    finally:
-        db.close()
+    # Patch LinkedIn client to assert access_token is provided
+    with patch.object(LinkedInClient, 'send_message', return_value=True) as send_mock:
+        ok = await send_message_to_platform(Platform.LINKEDIN, conversation_id="lin-conv", message="Hi", db=db)
+        assert ok is True
+        # access_token should be passed; we can't easily inspect due to signature, but mock ensures call happened
+        assert send_mock.called
 
 
 @pytest.mark.asyncio

@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     llm_provider: str = "mock"  # Options: openai, anthropic, gemini, mock
     
     # Gemini Configuration
-    gemini_model: str = "gemini-pro"
+    gemini_model: str = "gemini-1.5-flash"
     gemini_rate_limit: int = 60  # requests per minute
 
     # Agent Configuration

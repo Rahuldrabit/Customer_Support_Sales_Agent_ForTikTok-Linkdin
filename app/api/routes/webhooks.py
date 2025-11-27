@@ -42,6 +42,14 @@ async def tiktok_webhook(
         if not client.verify_webhook_signature(payload=webhook_data.model_dump_json(), signature=x_signature):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid signature")
 
+        # Check for duplicate message (deduplication)
+        from app.models.database import Message
+        platform_msg_id = f"tiktok_{webhook_data.conversation_id}_{webhook_data.timestamp or 0}"
+        existing_msg = db.query(Message).filter(Message.platform_message_id == platform_msg_id).first()
+        if existing_msg:
+            log.info(f"Duplicate TikTok message detected: {platform_msg_id}")
+            return {"status": "accepted", "internal_id": existing_msg.id}
+
         # Enqueue for async processing via Celery
         process_incoming_message_task.delay(
             platform=Platform.TIKTOK.value,
@@ -49,11 +57,17 @@ async def tiktok_webhook(
             platform_conversation_id=webhook_data.conversation_id,
             message_content=webhook_data.message,
             username=None,
-            extra_payload={"media_url": webhook_data.media_url} if webhook_data.media_url else None,
+            extra_payload={
+                "media_url": webhook_data.media_url,
+                "platform_message_id": platform_msg_id
+            } if webhook_data.media_url else {"platform_message_id": platform_msg_id},
         )
         
         return {"status": "accepted"}
         
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 401) as-is
+        raise
     except Exception as e:
         log.error(f"Error processing TikTok webhook: {e}")
         raise HTTPException(
@@ -89,8 +103,20 @@ async def linkedin_webhook(
         if not client.verify_webhook_signature(payload=webhook_data.model_dump_json(), signature=x_signature):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid signature")
 
+        # Check for duplicate message (deduplication)
+        from app.models.database import Message
+        platform_msg_id = f"linkedin_{webhook_data.conversation_id}_{webhook_data.timestamp or 0}"
+        existing_msg = db.query(Message).filter(Message.platform_message_id == platform_msg_id).first()
+        if existing_msg:
+            log.info(f"Duplicate LinkedIn message detected: {platform_msg_id}")
+            return {"status": "accepted", "internal_id": existing_msg.id}
+
         # Enqueue for async processing via Celery
-        extra = {"attachments": webhook_data.attachments} if webhook_data.attachments else None
+        extra = {
+            "attachments": webhook_data.attachments,
+            "platform_message_id": platform_msg_id
+        } if webhook_data.attachments else {"platform_message_id": platform_msg_id}
+        
         process_incoming_message_task.delay(
             platform=Platform.LINKEDIN.value,
             platform_user_id=webhook_data.sender_id,
@@ -102,6 +128,9 @@ async def linkedin_webhook(
         
         return {"status": "accepted"}
         
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 401) as-is
+        raise
     except Exception as e:
         log.error(f"Error processing LinkedIn webhook: {e}")
         raise HTTPException(

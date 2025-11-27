@@ -1,5 +1,6 @@
 """LangGraph agent nodes for message processing."""
 
+import time
 from typing import Dict, Any, Optional
 try:
     from langchain_openai import ChatOpenAI
@@ -118,12 +119,20 @@ class AgentNodes:
                 log.error(f"Failed to bind tools to LLM: {e}")
                 llm_runner = self.llm
 
-        # First pass
+        # First pass with timing
+        log.info("LLM invocation starting (provider=%s).", settings.llm_provider)
+        start = time.time()
         resp = await llm_runner.ainvoke(messages)
+        duration = time.time() - start
+        resp_content = getattr(resp, "content", None)
+        resp_preview = (resp_content or str(resp))[:200]
+        log.info("LLM returned in %.2fs. preview=%s", duration, resp_preview)
+
         # If tool calls present and we can construct ToolMessage, execute and do a second pass
         try:
             tool_calls = getattr(resp, "tool_calls", None)
             if tool_calls and ToolMessage is not None:
+                log.info("LLM requested %d tool call(s), executing...", len(tool_calls))
                 tool_msgs = []
                 for call in tool_calls:
                     name = call.get("name")
@@ -135,7 +144,12 @@ class AgentNodes:
                     except Exception as te:
                         tool_msgs.append(ToolMessage(content=f"ERROR: {te}", tool_call_id=call_id))
                 # Re-invoke with tool results appended
+                log.info("Re-invoking LLM with tool results...")
+                start2 = time.time()
                 final = await llm_runner.ainvoke([*messages, resp, *tool_msgs])
+                dur2 = time.time() - start2
+                final_content = getattr(final, "content", str(final))[:200]
+                log.info("LLM final returned in %.2fs. preview=%s", dur2, final_content)
                 return getattr(final, "content", str(final))
         except Exception as e:
             log.error(f"Tool call handling failed: {e}")
@@ -198,9 +212,11 @@ class AgentNodes:
         # Use LLM for classification if available
         if self.llm:
             try:
+                log.info("Calling LLM for classification (provider=%s).", settings.llm_provider)
                 prompt = ChatPromptTemplate.from_template(CLASSIFICATION_PROMPT)
                 messages = prompt.format_messages(message=message, context=context)
                 response_text = await self._invoke_with_tools(messages)
+                log.info("Classification LLM response preview: %s", (response_text or "")[:200])
                 if "CLASSIFICATION:" in response_text:
                     intent_line = [line for line in response_text.split("\n") if "CLASSIFICATION:" in line][0]
                     intent = intent_line.split(":")[1].strip().lower()
@@ -215,8 +231,12 @@ class AgentNodes:
                 state["intent"] = self._rule_based_classification(message)
         elif self.gemini:
             try:
+                log.info("Calling Gemini for classification.")
+                start_gemini = time.time()
                 prompt_text = CLASSIFICATION_PROMPT.format(message=message, context=context)
                 response_text = await self.gemini.generate_content(prompt_text)
+                dur_gemini = time.time() - start_gemini
+                log.info("Gemini classification returned in %.2fs. preview=%s", dur_gemini, (response_text or "")[:200])
                 
                 if "CLASSIFICATION:" in response_text:
                     intent_line = [line for line in response_text.split("\n") if "CLASSIFICATION:" in line][0]
@@ -348,9 +368,11 @@ class AgentNodes:
 
         if self.llm:
             try:
+                log.info("Calling LLM for resolve_with_tools (provider=%s).", settings.llm_provider)
                 prompt = ChatPromptTemplate.from_template(prompt_template)
                 messages = prompt.format_messages(message=message, context=context, tool_results=tool_json)
                 final_text = await self._invoke_with_tools(messages)
+                log.info("resolve_with_tools response preview: %s", (final_text or "")[:200])
                 state["response"] = final_text
                 return state
             except Exception as e:
@@ -419,18 +441,22 @@ class AgentNodes:
         
         if self.llm:
             try:
+                log.info("Calling LLM for generate_response (provider=%s).", settings.llm_provider)
                 prompt = ChatPromptTemplate.from_template(prompt_template)
                 messages = prompt.format_messages(message=message, context=context)
                 final_text = await self._invoke_with_tools(messages)
+                log.info("generate_response LLM preview: %s", (final_text or "")[:200])
             except Exception as e:
                 log.error(f"LLM response generation failed: {e}")
                 final_text = MOCK_RESPONSES.get(intent, MOCK_RESPONSES["general"])
         elif self.gemini:
             try:
-                # For Gemini, we can use the chat capability or just generate content
-                # Here we use generate_content with the full prompt for consistency
+                log.info("Calling Gemini for generate_response.")
+                start_gemini = time.time()
                 full_prompt = prompt_template.format(message=message, context=context)
                 final_text = await self.gemini.generate_content(full_prompt)
+                dur_gemini = time.time() - start_gemini
+                log.info("Gemini generate_response returned in %.2fs. preview=%s", dur_gemini, (final_text or "")[:200])
             except Exception as e:
                 log.error(f"Gemini response generation failed: {e}")
                 final_text = MOCK_RESPONSES.get(intent, MOCK_RESPONSES["general"])

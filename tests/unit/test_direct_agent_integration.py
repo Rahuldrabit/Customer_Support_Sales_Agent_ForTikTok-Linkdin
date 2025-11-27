@@ -3,6 +3,13 @@ Direct agent testing bypassing webhooks - demonstrates full integration.
 Tests: Message -> Agent (Gemini) -> Database persistence
 """
 
+# Ensure project root is importable when running this file directly
+import os
+import sys
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+
 import sys
 import asyncio
 from sqlalchemy import create_engine

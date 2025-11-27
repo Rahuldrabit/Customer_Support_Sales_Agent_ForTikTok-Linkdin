@@ -7,7 +7,7 @@ import time
 
 from app.models.database import (
     User, Conversation, Message, Platform,
-    ConversationStatus, MessageSender, MessageIntent
+    ConversationStatus, MessageSender, MessageIntent, MessageDirection
 )
 from app.agent.graph import get_agent
 from app.integrations.tiktok import TikTokClient
@@ -101,15 +101,19 @@ async def process_incoming_message(
     # Save incoming message
     import json as _json
     extra_json = None
+    platform_msg_id = None
     if extra_payload:
         try:
             extra_json = _json.dumps(extra_payload)
+            platform_msg_id = extra_payload.get("platform_message_id")
         except Exception:
             extra_json = None
 
     incoming_message = Message(
         conversation_id=conversation.id,
         sender_type=MessageSender.USER,
+        platform_message_id=platform_msg_id,
+        direction=MessageDirection.INBOUND,
         content=message_content,
         extra_data=extra_json
     )
@@ -143,7 +147,7 @@ async def process_incoming_message(
     except Exception:
         sticky_variant = None
 
-    agent_result = agent.process_message(
+    agent_result = await agent.process_message(
         message=message_content,
         conversation_history=history,
         sticky_prompt_variant=sticky_variant,
@@ -168,6 +172,7 @@ async def process_incoming_message(
     response_message = Message(
         conversation_id=conversation.id,
         sender_type=MessageSender.AGENT,
+        direction=MessageDirection.OUTBOUND,
         content=agent_result.get("response", ""),
         intent=MessageIntent(agent_result.get("intent", "general")),
         sentiment_score=agent_result.get("sentiment_score"),

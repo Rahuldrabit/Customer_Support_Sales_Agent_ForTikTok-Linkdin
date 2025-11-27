@@ -37,6 +37,19 @@ class MessageSender(str, enum.Enum):
     HUMAN = "human"
 
 
+class MessageDirection(str, enum.Enum):
+    """Message direction enumeration."""
+    INBOUND = "inbound"
+    OUTBOUND = "outbound"
+
+
+class MessageStatus(str, enum.Enum):
+    """Message status for outbound messages."""
+    QUEUED = "queued"
+    SENT = "sent"
+    FAILED = "failed"
+
+
 class MessageIntent(str, enum.Enum):
     """Message intent classification."""
     SUPPORT = "support"
@@ -74,6 +87,8 @@ class Conversation(Base):
     platform = Column(SQLEnum(Platform), nullable=False)
     platform_conversation_id = Column(String, unique=True, nullable=False, index=True)
     status = Column(SQLEnum(ConversationStatus), default=ConversationStatus.ACTIVE)
+    priority = Column(String, default="normal", nullable=True)  # high/normal/low
+    assigned_to = Column(Integer, nullable=True)  # Human agent ID
     escalated = Column(Boolean, default=False)
     escalation_reason = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -91,7 +106,10 @@ class Message(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False)
+    platform_message_id = Column(String, unique=True, nullable=True, index=True)  # For deduplication
     sender_type = Column(SQLEnum(MessageSender), nullable=False)
+    direction = Column(SQLEnum(MessageDirection), nullable=True)  # inbound/outbound
+    status = Column(SQLEnum(MessageStatus), nullable=True)  # For outbound messages
     content = Column(Text, nullable=False)
     intent = Column(SQLEnum(MessageIntent), nullable=True)
     sentiment_score = Column(Float, nullable=True)  # -1.0 to 1.0

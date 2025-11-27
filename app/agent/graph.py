@@ -152,18 +152,8 @@ class CustomerSupportAgent:
         platform: str | None = None,
         platform_user_id: str | None = None,
     ) -> Dict[str, Any]:
-        """
-        Process an incoming message through the agent workflow.
-        
-        Args:
-            message: The incoming message text
-            conversation_history: Optional list of previous messages
-            
-        Returns:
-            Dictionary containing response and metadata
-        """
-        log.info(f"Processing message: {message[:50]}...")
-        
+        """Process an incoming message through the agent workflow."""
+
         # Initialize state
         initial_state: AgentState = {
             "message": message,
@@ -184,17 +174,17 @@ class CustomerSupportAgent:
             "planned_tool_calls": [],
             "tool_results": {},
         }
-        
+
         # Run workflow asynchronously
         try:
             final_state = await self.workflow.ainvoke(initial_state)
-            
+
             log.info(
                 f"Message processed successfully. "
                 f"Intent: {final_state.get('intent')}, "
                 f"Escalation: {final_state.get('requires_escalation')}"
             )
-            
+
             return {
                 "response": final_state.get("response", ""),
                 "intent": final_state.get("intent", "general"),
@@ -208,7 +198,7 @@ class CustomerSupportAgent:
                     "response_valid": final_state.get("response_valid", True)
                 }
             }
-            
+
         except Exception as e:
             log.error(f"Error processing message: {e}")
             return {
