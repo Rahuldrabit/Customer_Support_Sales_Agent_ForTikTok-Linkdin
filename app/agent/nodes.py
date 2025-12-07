@@ -55,7 +55,7 @@ except Exception:
     ToolMessage = None
 
 
-from app.integrations.gemini import get_gemini_client
+from app.integrations.llm_router import get_llm_cached
 
 class AgentNodes:
     """Agent nodes for LangGraph workflow."""
@@ -63,41 +63,19 @@ class AgentNodes:
     def __init__(self):
         """Initialize the agent nodes with LLM client."""
         self.llm = self._initialize_llm()
-        self.gemini = None
-        if settings.llm_provider == "gemini":
-            self.gemini = get_gemini_client()
     
     def _initialize_llm(self):
-        """Initialize LLM based on configuration."""
-        if settings.llm_provider == "openai" and settings.openai_api_key:
-            if ChatOpenAI is None:
-                log.error("langchain_openai not installed, falling back to mock")
-                return None
-            log.info("Initializing OpenAI LLM")
-            return ChatOpenAI(
-                api_key=settings.openai_api_key,
-                model="gpt-3.5-turbo",
-                temperature=settings.agent_temperature,
-                max_tokens=settings.agent_max_tokens
-            )
-        elif settings.llm_provider == "anthropic" and settings.anthropic_api_key:
-            if ChatAnthropic is None:
-                log.error("langchain_anthropic not installed, falling back to mock")
-                return None
-            log.info("Initializing Anthropic LLM")
-            return ChatAnthropic(
-                api_key=settings.anthropic_api_key,
-                model="claude-3-haiku-20240307",
-                temperature=settings.agent_temperature,
-                max_tokens=settings.agent_max_tokens
-            )
-        elif settings.llm_provider == "gemini" and settings.gemini_api_key:
-            log.info("Initializing Gemini LLM")
-            # Gemini is handled via self.gemini client directly
-            return None
-        else:
-            if settings.llm_provider != "gemini":
+        """Initialize LLM based on configuration using the model router."""
+        try:
+            # Use the centralized LLM router
+            llm = get_llm_cached()
+            if llm is not None:
+                log.info(f"Successfully initialized LLM with provider: {settings.llm_provider}")
+            else:
                 log.warning("No LLM provider configured, using mock responses")
+            return llm
+        except Exception as e:
+            log.error(f"Failed to initialize LLM: {e}. Falling back to mock responses.")
             return None
 
     async def _invoke_with_tools(self, messages) -> str:
@@ -228,25 +206,6 @@ class AgentNodes:
                     
             except Exception as e:
                 log.error(f"LLM classification failed: {e}")
-                state["intent"] = self._rule_based_classification(message)
-        elif self.gemini:
-            try:
-                log.info("Calling Gemini for classification.")
-                start_gemini = time.time()
-                prompt_text = CLASSIFICATION_PROMPT.format(message=message, context=context)
-                response_text = await self.gemini.generate_content(prompt_text)
-                dur_gemini = time.time() - start_gemini
-                log.info("Gemini classification returned in %.2fs. preview=%s", dur_gemini, (response_text or "")[:200])
-                
-                if "CLASSIFICATION:" in response_text:
-                    intent_line = [line for line in response_text.split("\n") if "CLASSIFICATION:" in line][0]
-                    intent = intent_line.split(":")[1].strip().lower()
-                    state["intent"] = intent
-                    state["classification_reason"] = response_text
-                else:
-                    state["intent"] = self._rule_based_classification(message)
-            except Exception as e:
-                log.error(f"Gemini classification failed: {e}")
                 state["intent"] = self._rule_based_classification(message)
         else:
             # Rule-based classification
@@ -448,17 +407,6 @@ class AgentNodes:
                 log.info("generate_response LLM preview: %s", (final_text or "")[:200])
             except Exception as e:
                 log.error(f"LLM response generation failed: {e}")
-                final_text = MOCK_RESPONSES.get(intent, MOCK_RESPONSES["general"])
-        elif self.gemini:
-            try:
-                log.info("Calling Gemini for generate_response.")
-                start_gemini = time.time()
-                full_prompt = prompt_template.format(message=message, context=context)
-                final_text = await self.gemini.generate_content(full_prompt)
-                dur_gemini = time.time() - start_gemini
-                log.info("Gemini generate_response returned in %.2fs. preview=%s", dur_gemini, (final_text or "")[:200])
-            except Exception as e:
-                log.error(f"Gemini response generation failed: {e}")
                 final_text = MOCK_RESPONSES.get(intent, MOCK_RESPONSES["general"])
         else:
             # Use mock responses

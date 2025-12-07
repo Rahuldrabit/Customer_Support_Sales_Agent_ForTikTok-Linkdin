@@ -22,12 +22,13 @@ class Settings(BaseSettings):
     # LLM Configuration
     openai_api_key: Optional[str] = None
     anthropic_api_key: Optional[str] = None
-    gemini_api_key: Optional[str] = None
-    llm_provider: str = "mock"  # Options: openai, anthropic, gemini, mock
+    openrouter_api_key: Optional[str] = None
+    llm_provider: str = "mock"  # Options: openrouter, openai, anthropic, chatgpt, claude, mock
     
-    # Gemini Configuration
-    gemini_model: str = "gemini-1.5-flash"
-    gemini_rate_limit: int = 60  # requests per minute
+    # OpenRouter Configuration
+    openrouter_model: str = "anthropic/claude-3-haiku"  # Default model for OpenRouter
+    openrouter_site_url: Optional[str] = None  # Optional: Your site URL for OpenRouter rankings
+    openrouter_app_name: Optional[str] = None  # Optional: Your app name for OpenRouter rankings
 
     # Agent Configuration
     agent_max_tokens: int = 500
